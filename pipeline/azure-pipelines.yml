@@ -1,0 +1,61 @@
+trigger:
+- main
+
+variables:
+  vmImageName: 'ubuntu-latest'
+  projectDir: './src/Groffe.Distancias.Testes'
+
+stages:
+- stage: ORTCheck
+  displayName: OSS Review Toolkit Check stage
+  jobs:
+  - job: ORTCheck
+    displayName: ORTCheck
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - script: |
+        docker run ghcr.io/oss-review-toolkit/ort --version
+      displayName: Baixar imagem do OSS Review Toolkit (ORT)
+    - script: |
+        docker run ghcr.io/oss-review-toolkit/ort --help
+      displayName: Exibir opções da linha de comando do OSS Review Toolkit
+    - script: |
+        docker images
+      displayName: Exibir imagens no ambiente
+    - script: |
+        cd $(projectDir)
+        echo '**** Diretorio:'
+        echo $PWD
+        echo ''
+        chmod -R 777 .
+        echo 'Permissoes apos ajustes'
+        ls -ld
+      displayName: Configurar permissoes em diretorio do projeto para o OSS Review Toolkit
+    - script: |
+        cd $(projectDir)
+        docker run \
+          -v $PWD/:/project \
+          ghcr.io/oss-review-toolkit/ort --info \
+          analyze -i /project \
+          -o /project
+      displayName: Executar analise com o OSS Review Toolkit
+    - script: |
+        cd $(projectDir)
+        docker run \
+          -v $PWD/:/project \
+          ghcr.io/oss-review-toolkit/ort --info \
+          report -i /project/analyzer-result.yml \
+          -o /project \
+          -f StaticHtml
+      displayName: Exportar para HTML resultado da analise com o OSS Review Toolkit
+    - script: |
+        cd $(projectDir)
+        ls
+      displayName: Exibir arquivos gerados apos exportacao
+      condition: always()
+    - task: PublishHtmlReport@1
+      inputs:
+        reportDir: '$(projectDir)/scan-report.html'
+      displayName: Publicar resultado da analise no formato HTML
+      condition: always()
